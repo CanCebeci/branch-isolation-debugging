@@ -1,0 +1,4 @@
+[submodule "z3"]
+	path = z3
+	url = git@github.com:CanCebeci/z3.git
+	branch = branch-isolation-debugging
