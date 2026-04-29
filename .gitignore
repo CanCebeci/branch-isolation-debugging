@@ -1,1 +1,3 @@
 *.z3-trace
+*mariposa_res.csv
+*__pycache__
