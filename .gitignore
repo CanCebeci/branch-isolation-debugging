@@ -1,5 +1,7 @@
 *.z3-trace
 *mariposa_res.csv
 *__pycache__
+*z3.log
 
 assigndump.smt2
+get_value.smt2
