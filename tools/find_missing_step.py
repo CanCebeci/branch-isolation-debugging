@@ -1,26 +1,15 @@
 #!/usr/bin/env python3
 
 import argparse 
-from dataclasses import dataclass
-from enum import Enum
 
 from utils import *
+from datatypes import *
+from visualizer import visualize
 
 
 TMP_GV_FILE = "get_value.smt2"
 
-@dataclass 
-class Lit:
-    boolvar_id: int     # ID in the assigndump trace
-    sign: bool          # True if sign is negative
-    sexpr: str          # pretty printed expression
-
-class Val(Enum):
-    TRUE = 1
-    FALSE = 2
-    NON_EVAL = 3        # The value of expressions that are not fully evaluable in the failing branch
-
-def identify_conflict_lits(log):
+def parse_conflict(log):
     conflict_lines = []
     with open(log) as f:
         in_conflict = False
@@ -43,9 +32,15 @@ def identify_conflict_lits(log):
     lit_ids = conflict_lines[1].strip().split()
     exprs = [s.strip() for s in conflict_lines[2:-1]]
     assert(len(lit_ids) == len(exprs))
-    return [Lit(abs(int(id)), int(id) < 0, expr) for id, expr in zip(lit_ids, exprs)]
+
+    # We'll worry about justifications later
+    jst=""
+
+    return [Lit(int(id), expr) for id, expr in zip(lit_ids, exprs)], jst
 
 def get_failing_branch_assignments(unknown_mutant, lits: list[Lit]):
+    if len(lits) == 0:
+        return []
     gv = TMP_GV_FILE
 
     copy_file(unknown_mutant, gv)
@@ -78,6 +73,51 @@ def get_failing_branch_assignments(unknown_mutant, lits: list[Lit]):
 
     return out
 
+def find_missing_lit(lits, vals):
+    for l, v in zip(lits, vals):
+        if v != Val.TRUE:
+            return l, v
+    return None, None
+
+def parse_propagation(log, l: Lit):
+    # TODO: clean this up
+    assign_line = None
+    with open(log) as f:
+        found_assign = False
+        for line in f:
+            if found_assign:
+                if l.sexpr == "":
+                    # This must be redundant..
+                    l.sexpr = line.strip()
+                break
+            if line.startswith(f"[assign] {l.id}"):
+                assign_line = line
+                found_assign = True
+    assign_line = assign_line.strip().split()
+    idx=3
+    if l.id < 0:
+        idx += 1 # account for "(not "
+    jst = assign_line[idx]
+    idx+=1
+    if jst == "justification":
+        jst += " " + assign_line[idx]
+        idx+=1 
+
+    antecedents = [Lit(int(n), "") for n in assign_line[idx:]]
+
+    is_input = len(antecedents) == 0 and jst == "-1:"
+
+    return Propagation(l, antecedents, jst, None, is_input, None)
+
+def find_sexpr(log, l: Lit):
+    with open(log) as f:
+        found_assign = False
+        for line in f:
+            if found_assign:
+                return line.strip()
+            if line.startswith(f"[assign] {l.id}"):
+                found_assign = True
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--unknown-mutant", required=True)
@@ -87,11 +127,46 @@ def main():
 
     # TODO: ensure uknown_mutant really is unknown
     # TODO: ensure assigndump_log does not branch
+    props=[]
+    lvl=1
 
     log = args.assigndump_log
-    conflict_lits = identify_conflict_lits(log)
+    antecedents, conflict_jst = parse_conflict(log)
+
+    false_lit = Lit(-0,"false")
+    props.append(Propagation(false_lit, antecedents, conflict_jst, Val.FALSE, False, 0))
     
-    print(get_failing_branch_assignments(args.unknown_mutant, conflict_lits))
+    vals = get_failing_branch_assignments(args.unknown_mutant, antecedents)
+    missing_lit, missing_lit_val = find_missing_lit(antecedents, vals)
+    print("ML", missing_lit)
+    while missing_lit != None:
+        # Create truncated propagation nodes for all antecedents but l
+        for l, v in zip(antecedents, vals):
+            if l != missing_lit:
+                props.append(Propagation(l, [], "", v, False, lvl))
+        
+        # create propagation node for l
+        p = parse_propagation(log, missing_lit)
+        p.consequent_val = missing_lit_val
+        p.distance = lvl
+        props.append(p)
+
+        lvl += 1
+
+        antecedents = p.antecedents
+        for i in range(len(antecedents)):
+            if antecedents[i].sexpr == "":
+                antecedents[i].sexpr = find_sexpr(log, antecedents[i])
+        vals = get_failing_branch_assignments(args.unknown_mutant, antecedents)
+        missing_lit, missing_lit_val = find_missing_lit(antecedents, vals)
+        print("ML", missing_lit)
+        
+
+    # Create truncated propagation nodes for all antecedents
+    for l, v in zip(antecedents, vals):
+        props.append(Propagation(l, [], "", v, False, lvl))
+
+    visualize(props)
 
 if __name__ == "__main__":
     main()
