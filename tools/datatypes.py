@@ -20,3 +20,15 @@ class Propagation:
     input: bool         # Is this an input assertion, or does it result from rewriting an input assertion?
     distance: int       # The number of propagations to get to false
 
+@dataclass 
+class Clause:
+    lits: list[Lit]
+    instance_hash: str
+    props: list[Propagation]
+
+@dataclass 
+class Quantifier:
+    qid: str
+    bool_id: int  # The bool_var id in the unknown mutant of the source quantifier
+    clauses_created: list[Clause]
+

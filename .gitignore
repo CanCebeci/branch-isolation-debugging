@@ -1,7 +1,15 @@
+# Generic artifacts
 *.z3-trace
-*mariposa_res.csv
 *__pycache__
 *z3.log
 
+# Artifacts from my scripts
+*mariposa_res.csv
 assigndump.smt2
 get_value.smt2
+
+# Visualization artifacts
+**/lib/tom-select/
+**/lib/vis-9.1.2/
+**/lib/bindings/
+propagation_tree.html

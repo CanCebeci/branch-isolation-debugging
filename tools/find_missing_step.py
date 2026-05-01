@@ -101,7 +101,7 @@ def parse_propagation(log, l: Lit):
     idx+=1
     if jst == "justification":
         jst += " " + assign_line[idx]
-        idx+=1 
+        idx+=1
 
     antecedents = [Lit(int(n), "") for n in assign_line[idx:]]
 
@@ -118,6 +118,51 @@ def find_sexpr(log, l: Lit):
             if line.startswith(f"[assign] {l.id}"):
                 found_assign = True
 
+def find_clause(log, antecedents: list[Lit], consequent: Lit):
+    # Target clause must have the following subset of lits
+    subset = set([-l.id for l in antecedents])
+    subset.add(consequent.id)
+
+    candidates = []
+    with open(log) as f:
+        line_no=1
+        for line in f:
+            if line.startswith("[--- mk-clause ---]"):
+                cls = set([int(l) for l in line[len("[--- mk-clause ---]"):].strip().split()])
+                if subset <= cls:
+                    candidates.append((line_no, cls))
+            line_no+=1
+
+    if len(candidates) == 0:
+        raise Exception("Could not find clause")
+    
+    assert(len(candidates) == 1) # TODO: not sure how to choose between candidates yet.
+    cls_line, cls = candidates[0]
+
+    # Some kind of backwards search utility would significantly simplify and optimize this stuff..
+    
+    # Figure out the source quantifier
+    instance_line = None
+    instance_hash = None
+    with open(log) as f:
+        line_no=1
+        for line in f:
+            if line_no == cls_line:
+                break
+            if line.startswith("[instance]"):
+                instance_line = line_no
+                instance_hash = line.split()[1]
+            if line.startswith("[end-of-instance]"):
+                instance_line = None
+                instance_hash = None
+            line_no+=1
+    if not instance_hash:
+        raise Exception("Clause not created while instantiating quantifier")
+
+    return Clause([Lit(id, "") for id in cls], instance_hash,[])
+
+
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--unknown-mutant", required=True)
@@ -128,6 +173,8 @@ def main():
     # TODO: ensure uknown_mutant really is unknown
     # TODO: ensure assigndump_log does not branch
     props=[]
+    clauses=[]
+    quantifiers=[]
     lvl=1
 
     log = args.assigndump_log
@@ -138,7 +185,6 @@ def main():
     
     vals = get_failing_branch_assignments(args.unknown_mutant, antecedents)
     missing_lit, missing_lit_val = find_missing_lit(antecedents, vals)
-    print("ML", missing_lit)
     while missing_lit != None:
         # Create truncated propagation nodes for all antecedents but l
         for l, v in zip(antecedents, vals):
@@ -151,6 +197,10 @@ def main():
         p.distance = lvl
         props.append(p)
 
+        if p.justification == "clause" or p.justification == "bin":
+            cls = find_clause(log, p.antecedents, p.consequent)
+            cls.props.append(p)
+            clauses.append(cls)
         lvl += 1
 
         antecedents = p.antecedents
@@ -159,14 +209,13 @@ def main():
                 antecedents[i].sexpr = find_sexpr(log, antecedents[i])
         vals = get_failing_branch_assignments(args.unknown_mutant, antecedents)
         missing_lit, missing_lit_val = find_missing_lit(antecedents, vals)
-        print("ML", missing_lit)
         
 
     # Create truncated propagation nodes for all antecedents
     for l, v in zip(antecedents, vals):
         props.append(Propagation(l, [], "", v, False, lvl))
 
-    visualize(props)
+    visualize(props,clauses)
 
 if __name__ == "__main__":
     main()
