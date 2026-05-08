@@ -159,10 +159,35 @@ def find_clause(log, antecedents: list[Lit], consequent: Lit):
     if not instance_hash:
         raise Exception("Clause not created while instantiating quantifier")
 
+    # TODO: see if we have already created the clause.
     return Clause([Lit(id, "") for id in cls], instance_hash,[])
 
+def find_instance(log, cls: Clause):
+    # For now, assuming instance_hash is unique in the log.
+    qid=None
+    match=[]
+    with open(log) as f:
+        read_match=False
+        for line in f:
+            if line.startswith(f"[new-match] {cls.instance_hash}"):
+                qid = line.split()[4]
+                read_match = True
+                continue
+            if read_match:
+                if line.startswith(" ;"):
+                    break # done
+                
+                # For now match[0] is the matching terms, and match[1:] contain substitution pairs.
+                # This is broken, as substitution pairs aren't logged correctly right now.
+                # Also, we would idealy not put the pairs in Term structs, which are supposed to hold sexprs.
+                #! tmp: skip subsitutions 
+                if len(match) > 0:
+                    continue
+                match.append(line.strip())
 
-
+    # TODO: see if we have already created the quantifier, or any of the terms
+    return Quantifier(qid, 0, [cls]), [Term(t, [cls]) for t in match]
+                
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--unknown-mutant", required=True)
@@ -172,9 +197,7 @@ def main():
 
     # TODO: ensure uknown_mutant really is unknown
     # TODO: ensure assigndump_log does not branch
-    props=[]
-    clauses=[]
-    quantifiers=[]
+    props=[]; clauses=[]; quantifiers=[]; terms=[]
     lvl=1
 
     log = args.assigndump_log
@@ -201,6 +224,9 @@ def main():
             cls = find_clause(log, p.antecedents, p.consequent)
             cls.props.append(p)
             clauses.append(cls)
+            qt, ts = find_instance(log, cls)
+            quantifiers.append(qt)
+            terms += ts
         lvl += 1
 
         antecedents = p.antecedents
@@ -215,7 +241,7 @@ def main():
     for l, v in zip(antecedents, vals):
         props.append(Propagation(l, [], "", v, False, lvl))
 
-    visualize(props,clauses)
+    visualize(props, clauses, quantifiers, terms)
 
 if __name__ == "__main__":
     main()

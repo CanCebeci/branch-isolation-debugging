@@ -3,7 +3,7 @@ from enum import Enum
 
 @dataclass 
 class Lit:
-    id: int     # ID in the assigndump trace
+    id: int             # ID in the assigndump trace
     sexpr: str          # pretty printed expression
 
 class Val(Enum):
@@ -29,6 +29,11 @@ class Clause:
 @dataclass 
 class Quantifier:
     qid: str
-    bool_id: int  # The bool_var id in the unknown mutant of the source quantifier
+    bool_id: int    # The bool_var id in the unknown mutant of the source quantifier
+    clauses_created: list[Clause]
+
+@dataclass 
+class Term:
+    sexpr: str      # pretty printed expression
     clauses_created: list[Clause]
 
