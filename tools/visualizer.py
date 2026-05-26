@@ -3,6 +3,59 @@ from pyvis.network import Network
 
 from datatypes import *
 
+
+def _format_val(v: Val | None):
+    if v is None:
+        return "UNKNOWN"
+    return v.name
+
+
+def _format_lit(l: Lit):
+    return f"{l.id}: {l.sexpr}"
+
+
+def _print_text_summary(
+    props: list[Propagation],
+    clauses: list[Clause],
+    quantifiers: list[Quantifier],
+    terms: list[Term],
+):
+    print("=== Propagations ===")
+    if not props:
+        print("(none)")
+    for i, p in enumerate(props, start=1):
+        ant_ids = [a.id for a in p.antecedents]
+        print(
+            f"[{i}] level={p.distance} val={_format_val(p.consequent_val)} "
+            f"jst={p.justification or '-'} consequent=({_format_lit(p.consequent)}) "
+            f"antecedents={ant_ids}"
+        )
+
+    print("\n=== Clauses ===")
+    if not clauses:
+        print("(none)")
+    for i, cls in enumerate(clauses, start=1):
+        lit_ids = [l.id for l in cls.lits]
+        prop_cons = [p.consequent.id for p in cls.props]
+        print(
+            f"[{i}] instance_hash={cls.instance_hash} lits={lit_ids} "
+            f"used_by_props={prop_cons}"
+        )
+
+    print("\n=== Quantifiers ===")
+    if not quantifiers:
+        print("(none)")
+    for i, q in enumerate(quantifiers, start=1):
+        clause_ids = [cls_node_id(c) for c in q.clauses_created]
+        print(f"[{i}] qid={q.qid} bool_id={q.bool_id} clauses={clause_ids}")
+
+    print("\n=== Terms ===")
+    if not terms:
+        print("(none)")
+    for i, t in enumerate(terms, start=1):
+        clause_ids = [cls_node_id(c) for c in t.clauses_created]
+        print(f"[{i}] sexpr={t.sexpr} clauses={clause_ids}")
+
 def color(p: Propagation):
     v = p.consequent_val
     if v == Val.TRUE:
@@ -33,6 +86,8 @@ def cls_level(cls):
     return max([p.distance for p in cls.props]) + 1
 
 def visualize(props: list[Propagation], clauses: list[Clause], quantifiers: list[Quantifier], terms: list[Term]):
+    _print_text_summary(props, clauses, quantifiers, terms)
+
     G = nx.DiGraph()
 
     # Add propagation nodes
