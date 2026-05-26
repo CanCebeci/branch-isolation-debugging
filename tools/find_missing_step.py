@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import argparse 
+import re
 
 from utils import *
 from datatypes import *
@@ -26,8 +27,11 @@ def parse_conflict(log):
             if in_conflict:
                 conflict_lines.append(line)
 
-    # Make sure we have a justification for false:
-    assert(conflict_lines[0].strip() == "--- justification lits for -0 ---")
+    header = conflict_lines[0].strip()
+    match = re.fullmatch(r"--- justification lits for (-?\d+) ---", header)
+    assert(match is not None)
+    conflict_lit_id = int(match.group(1))
+
 
     lit_ids = conflict_lines[1].strip().split()
     exprs = [s.strip() for s in conflict_lines[2:-1]]
@@ -36,7 +40,11 @@ def parse_conflict(log):
     # We'll worry about justifications later
     jst=""
 
-    return [Lit(int(id), expr) for id, expr in zip(lit_ids, exprs)], jst
+    return [Lit(int(id), expr) for id, expr in zip(lit_ids, exprs)], jst, conflict_lit_id
+
+# We should have a more robust 'contains quantifier' function
+def is_quantifier(sexpr):
+    return sexpr.startswith("(forall ") or sexpr.startswith("(exists ")
 
 def get_failing_branch_assignments(unknown_mutant, lits: list[Lit]):
     if len(lits) == 0:
@@ -46,7 +54,10 @@ def get_failing_branch_assignments(unknown_mutant, lits: list[Lit]):
     copy_file(unknown_mutant, gv)
     append_line(gv, "(get-value (")
     for lit in lits:
-        append_line(gv, lit.sexpr)
+        if is_quantifier(lit.sexpr):
+            append_line(gv, 'true') # Skip quantifiers
+        else:
+            append_line(gv, lit.sexpr)
     append_line(gv, "))")
 
     res = run_z3(gv)
@@ -59,6 +70,10 @@ def get_failing_branch_assignments(unknown_mutant, lits: list[Lit]):
     assert(len(res) == len(lits))
     out=[]
     for lit, line in zip(lits, res):
+        if is_quantifier(lit.sexpr):
+            out.append(Val.NON_EVAL)  # Did not evaluate quantifiers
+            continue
+
         assert(line[0] == "(" and line[-1] == ")")
         l = len(lit.sexpr)
         assert(line[1:1+l] == lit.sexpr)
@@ -72,6 +87,10 @@ def get_failing_branch_assignments(unknown_mutant, lits: list[Lit]):
             out.append(Val.NON_EVAL)
 
     return out
+
+def get_failing_branch_assignment(unknown_mutant, l: Lit):
+    vals = get_failing_branch_assignments(unknown_mutant, [l])
+    return vals[0] if vals else None
 
 def find_missing_lit(lits, vals):
     for l, v in zip(lits, vals):
@@ -104,19 +123,36 @@ def parse_propagation(log, l: Lit):
         idx+=1
 
     antecedents = [Lit(int(n), "") for n in assign_line[idx:]]
+    for i in range(len(antecedents)):
+        antecedents[i].sexpr = find_sexpr(log, antecedents[i])
 
     is_input = len(antecedents) == 0 and jst == "-1:"
 
     return Propagation(l, antecedents, jst, None, is_input, None)
 
+def negate_sexpr(s):
+    if s.startswith("(not "):
+        return s[5:-1]
+    else:
+        return f"(not {s})"
+
+def negate_lit(l: Lit):
+    return Lit(-l.id, negate_sexpr(l.sexpr))
+
 def find_sexpr(log, l: Lit):
     with open(log) as f:
-        found_assign = False
+        found_assign_pos = False
+        found_assign_neg = False
         for line in f:
-            if found_assign:
+            if found_assign_pos:
                 return line.strip()
+            if found_assign_neg:
+                return negate_sexpr(line.strip())
+            
             if line.startswith(f"[assign] {l.id}"):
-                found_assign = True
+                found_assign_pos = True
+            if line.startswith(f"[assign] {-l.id}"):
+                found_assign_neg = True 
 
 def find_clause(log, antecedents: list[Lit], consequent: Lit):
     # Target clause must have the following subset of lits
@@ -187,7 +223,13 @@ def find_instance(log, cls: Clause):
 
     # TODO: see if we have already created the quantifier, or any of the terms
     return Quantifier(qid, 0, [cls]), [Term(t, [cls]) for t in match]
-                
+
+def handle_conflict_lit(unknown_mutant, log,  conflict_lit_id):
+    conflict_lit = Lit(conflict_lit_id, "")
+    conflict_lit.sexpr = find_sexpr(log, conflict_lit)
+    
+    return conflict_lit, get_failing_branch_assignment(unknown_mutant, conflict_lit)
+
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--unknown-mutant", required=True)
@@ -197,18 +239,34 @@ def main():
 
     # TODO: ensure uknown_mutant really is unknown
     # TODO: ensure assigndump_log does not branch
+    # For now, agents separately ensure these.
     props=[]; clauses=[]; quantifiers=[]; terms=[]
     lvl=1
 
     log = args.assigndump_log
-    antecedents, conflict_jst = parse_conflict(log)
+    antecedents, conflict_jst, conflict_lit_id = parse_conflict(log)
 
     false_lit = Lit(-0,"false")
-    props.append(Propagation(false_lit, antecedents, conflict_jst, Val.FALSE, False, 0))
+
+    if conflict_lit_id == 0:
+        props.append(Propagation(false_lit, antecedents, conflict_jst, Val.FALSE, False, 0))
+    else:
+        conflict_lit, v = handle_conflict_lit(args.unknown_mutant, log, conflict_lit_id)
+        
+        props.append(Propagation(false_lit, [conflict_lit, negate_lit(conflict_lit)], "", Val.FALSE, False, 0))
+        if v == Val.TRUE:
+            conflict_lit = negate_lit(conflict_lit)
+            p = parse_propagation(log, conflict_lit)
+            antecedents = p.antecedents
+            conflict_jst = p.justification
+        props.append(Propagation(conflict_lit, antecedents, conflict_jst, Val.FALSE, False, 1))
+        props.append(Propagation(negate_lit(conflict_lit), [], conflict_jst, Val.TRUE, False, 1))
+        lvl += 1
     
     vals = get_failing_branch_assignments(args.unknown_mutant, antecedents)
     missing_lit, missing_lit_val = find_missing_lit(antecedents, vals)
     while missing_lit != None:
+        import pdb; pdb.set_trace()
         # Create truncated propagation nodes for all antecedents but l
         for l, v in zip(antecedents, vals):
             if l != missing_lit:
@@ -230,9 +288,6 @@ def main():
         lvl += 1
 
         antecedents = p.antecedents
-        for i in range(len(antecedents)):
-            if antecedents[i].sexpr == "":
-                antecedents[i].sexpr = find_sexpr(log, antecedents[i])
         vals = get_failing_branch_assignments(args.unknown_mutant, antecedents)
         missing_lit, missing_lit_val = find_missing_lit(antecedents, vals)
         
