@@ -93,9 +93,16 @@ def get_failing_branch_assignment(unknown_mutant, l: Lit):
     return vals[0] if vals else None
 
 def find_missing_lit(lits, vals):
+    qt_candidate = None
     for l, v in zip(lits, vals):
         if v != Val.TRUE:
+            # Avoid quantifiers if we can. We can't evaluate them.
+            if is_quantifier(l.sexpr):
+                qt_candidate = (l, v)
+                continue
             return l, v
+    if qt_candidate:
+        return qt_candidate
     return None, None
 
 def parse_propagation(log, l: Lit):
