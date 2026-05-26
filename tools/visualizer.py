@@ -2,6 +2,7 @@ import networkx as nx
 from pyvis.network import Network
 
 from datatypes import *
+from utils import intelligible_jst
 
 
 def _format_val(v: Val | None):
@@ -65,17 +66,6 @@ def color(p: Propagation):
         return "red"
     if v == Val.NON_EVAL:
         return "yellow"
-    
-def intelligible_jst(p: Propagation):
-    jst = p.justification
-    if jst == "bin":
-        return "binary clause"
-    if jst == "justification -1:":
-        if p.input:
-            return "input assertion"
-        return "theory propagation"
-    else:
-        return jst
 
 def qt_node_id(q):
     return f"QT:{q.qid}"

@@ -256,7 +256,8 @@ def main():
     false_lit = Lit(-0,"false")
 
     if conflict_lit_id == 0:
-        props.append(Propagation(false_lit, antecedents, conflict_jst, Val.FALSE, False, 0))
+        p = Propagation(false_lit, antecedents, conflict_jst, Val.FALSE, False, 0)
+        props.append(p)
     else:
         conflict_lit, v = handle_conflict_lit(args.unknown_mutant, log, conflict_lit_id)
         
@@ -266,14 +267,19 @@ def main():
             p = parse_propagation(log, conflict_lit)
             antecedents = p.antecedents
             conflict_jst = p.justification
-        props.append(Propagation(conflict_lit, antecedents, conflict_jst, Val.FALSE, False, 1))
+        p = Propagation(conflict_lit, antecedents, conflict_jst, Val.FALSE, False, 1)
+        props.append(p)
         props.append(Propagation(negate_lit(conflict_lit), [], conflict_jst, Val.TRUE, False, 1))
         lvl += 1
     
-    vals = get_failing_branch_assignments(args.unknown_mutant, antecedents)
-    missing_lit, missing_lit_val = find_missing_lit(antecedents, vals)
-    while missing_lit != None:
-        import pdb; pdb.set_trace()
+    while True:
+        vals = get_failing_branch_assignments(args.unknown_mutant, antecedents)
+        new_missing_lit, new_missing_lit_val = find_missing_lit(antecedents, vals)
+        if new_missing_lit is None:
+            break
+        missing_lit = new_missing_lit
+        missing_lit_val = new_missing_lit_val
+
         # Create truncated propagation nodes for all antecedents but l
         for l, v in zip(antecedents, vals):
             if l != missing_lit:
@@ -295,8 +301,6 @@ def main():
         lvl += 1
 
         antecedents = p.antecedents
-        vals = get_failing_branch_assignments(args.unknown_mutant, antecedents)
-        missing_lit, missing_lit_val = find_missing_lit(antecedents, vals)
         
 
     # Create truncated propagation nodes for all antecedents
@@ -304,6 +308,12 @@ def main():
         props.append(Propagation(l, [], "", v, False, lvl))
 
     visualize(props, clauses, quantifiers, terms)
+
+    # Summary of what seems to be the problem
+    print("=== Problem Summary ===")
+    print(f"Boolean term that is missing from the failing branch: {missing_lit}")
+    print(f"In the isolated query, this was deduced with justification '{intelligible_jst(p)}' from the following antecedents: {p.antecedents}")
+    
 
 if __name__ == "__main__":
     main()

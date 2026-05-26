@@ -2,6 +2,7 @@ import os
 import subprocess
 
 from config import *
+from datatypes import Propagation
 
 class Z3ErrorsException(Exception):
     def __init__(self, z3_errors):
@@ -44,3 +45,14 @@ def run_z3(smt2, args=[]):
         raise Z3ErrorsException(result.stdout.splitlines()[:-1])
     
     return result.stdout.strip()
+
+def intelligible_jst(p: Propagation):
+    jst = p.justification
+    if jst == "bin":
+        return "binary clause"
+    if jst == "justification -1:":
+        if p.input:
+            return "input assertion"
+        return "theory propagation"
+    else:
+        return jst
