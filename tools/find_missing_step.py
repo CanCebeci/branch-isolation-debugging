@@ -129,7 +129,11 @@ def parse_propagation(log, l: Lit):
         jst += " " + assign_line[idx]
         idx+=1
 
-    antecedents = [Lit(int(n), "") for n in assign_line[idx:]]
+    ant_ids = [int(n) for n in assign_line[idx:] if int(n) != l.id]
+    if jst == "clause" or jst == "bin":
+        ant_ids = [-n for n in ant_ids]
+
+    antecedents = [Lit(n, "") for n in ant_ids]
     for i in range(len(antecedents)):
         antecedents[i].sexpr = find_sexpr(log, antecedents[i])
 
@@ -178,8 +182,9 @@ def find_clause(log, antecedents: list[Lit], consequent: Lit):
 
     if len(candidates) == 0:
         raise Exception("Could not find clause")
-    
-    assert(len(candidates) == 1) # TODO: not sure how to choose between candidates yet.
+
+    # Prefer stricter match quality; tie-break on smaller clause, then first seen.
+    candidates.sort(key=lambda c: (len(c[1]), c[0]))
     cls_line, cls = candidates[0]
 
     # Some kind of backwards search utility would significantly simplify and optimize this stuff..
@@ -310,9 +315,10 @@ def main():
     visualize(props, clauses, quantifiers, terms)
 
     # Summary of what seems to be the problem
+    print("")
     print("=== Problem Summary ===")
-    print(f"Boolean term that is missing from the failing branch: {missing_lit}")
-    print(f"In the isolated query, this was deduced with justification '{intelligible_jst(p)}' from the following antecedents: {p.antecedents}")
+    print(f"Boolean term missing from the failing branch of unknown query: {missing_lit}")
+    print(f"In the branch-isolated query, this term was deduced with justification '{intelligible_jst(p)}' from the following antecedents: {p.antecedents}")
     
 
 if __name__ == "__main__":

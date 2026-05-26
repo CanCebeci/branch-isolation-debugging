@@ -21,7 +21,7 @@ def _print_text_summary(
     quantifiers: list[Quantifier],
     terms: list[Term],
 ):
-    print("=== Propagations ===")
+    print("=== Relevant Propagations ===")
     if not props:
         print("(none)")
     for i, p in enumerate(props, start=1):
@@ -33,7 +33,7 @@ def _print_text_summary(
             f"input={p.input}"
         )
 
-    print("\n=== Clauses ===")
+    print("\n=== Relevant Clauses ===")
     if not clauses:
         print("(none)")
     for i, cls in enumerate(clauses, start=1):
@@ -44,14 +44,14 @@ def _print_text_summary(
             f"used_by_props={prop_cons}"
         )
 
-    print("\n=== Quantifiers ===")
+    print("\n=== Relevant Quantifiers ===")
     if not quantifiers:
         print("(none)")
     for i, q in enumerate(quantifiers, start=1):
         clause_ids = [cls_node_id(c) for c in q.clauses_created]
         print(f"[{i}] qid={q.qid} bool_id={q.bool_id} clauses={clause_ids}")
 
-    print("\n=== Terms ===")
+    print("\n=== Relevant Terms ===")
     if not terms:
         print("(none)")
     for i, t in enumerate(terms, start=1):
