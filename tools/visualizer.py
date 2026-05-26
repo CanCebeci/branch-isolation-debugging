@@ -28,7 +28,8 @@ def _print_text_summary(
         print(
             f"[{i}] level={p.distance} val={_format_val(p.consequent_val)} "
             f"jst={p.justification or '-'} consequent=({_format_lit(p.consequent)}) "
-            f"antecedents={ant_ids}"
+            f"antecedents={ant_ids} "
+            f"input={p.input}"
         )
 
     print("\n=== Clauses ===")
@@ -65,10 +66,13 @@ def color(p: Propagation):
     if v == Val.NON_EVAL:
         return "yellow"
     
-def intelligible_jst(jst):
+def intelligible_jst(p: Propagation):
+    jst = p.justification
     if jst == "bin":
         return "binary clause"
     if jst == "justification -1:":
+        if p.input:
+            return "input assertion"
         return "theory propagation"
     else:
         return jst
@@ -93,7 +97,7 @@ def visualize(props: list[Propagation], clauses: list[Clause], quantifiers: list
     # Add propagation nodes
     for p in props:
         lit_id = p.consequent.id
-        G.add_node(lit_id, label=f"{lit_id}\n({intelligible_jst(p.justification)})", title=p.consequent.sexpr, color=color(p), level=p.distance)
+        G.add_node(lit_id, label=f"{lit_id}\n({intelligible_jst(p)})", title=p.consequent.sexpr, color=color(p), level=p.distance)
     
     for p in props:
         cons_id = p.consequent.id

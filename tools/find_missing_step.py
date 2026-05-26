@@ -126,7 +126,7 @@ def parse_propagation(log, l: Lit):
     for i in range(len(antecedents)):
         antecedents[i].sexpr = find_sexpr(log, antecedents[i])
 
-    is_input = len(antecedents) == 0 and jst == "-1:"
+    is_input = len(antecedents) == 0 and jst == "justification -1:"
 
     return Propagation(l, antecedents, jst, None, is_input, None)
 
