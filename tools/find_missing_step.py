@@ -130,7 +130,7 @@ def parse_propagation(log, l: Lit):
         idx+=1
 
     ant_ids = [int(n) for n in assign_line[idx:] if int(n) != l.id]
-    if jst == "clause" or jst == "bin":
+    if jst == "clause":
         ant_ids = [-n for n in ant_ids]
 
     antecedents = [Lit(n, "") for n in ant_ids]
@@ -181,6 +181,7 @@ def find_clause(log, antecedents: list[Lit], consequent: Lit):
             line_no+=1
 
     if len(candidates) == 0:
+        print(subset)
         raise Exception("Could not find clause")
 
     # Prefer stricter match quality; tie-break on smaller clause, then first seen.
