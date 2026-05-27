@@ -319,7 +319,12 @@ def main():
     print("=== Problem Summary ===")
     print(f"Boolean term missing from the failing branch of unknown query: {missing_lit}")
     print(f"In the branch-isolated query, this term was deduced with justification '{intelligible_jst(p)}' from the following antecedents: {p.antecedents}")
-    
+    if p.justification == "clause" or p.justification == "bin":
+        print(f"The clause that led to this deduction is: {find_clause(log, p.antecedents, p.consequent)}")
+        qt, ts = find_instance(log, cls)
+        print(f"The quantifier that instantiated this clause is: {qt}")
+        print(f"The terms that instantiated this clause are: {ts}")
+
 
 if __name__ == "__main__":
     main()
