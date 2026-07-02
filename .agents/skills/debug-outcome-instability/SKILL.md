@@ -6,22 +6,27 @@ permissions:
   - writes
   - runs_binary       # only if the skill compiles or runs a binary
 ---
-
 # Debug Outcome Instability
-1. Call input `orig_query.smt2`
-2. Confirm outcome instability and get unknown mutant.
-  - Run `tools/get_unknown_mutant.py`
-  - Make sure mariposa_res.csv is created and contains both unsat (result_code == 2) and unknown results (result_code == 4). If not, report and stop.
-  - Make sure `unknown_mutant.smt2` is created and that Z3 returns unknown for it.
-3. Isolate the failing branch of the unknown mutant.
-  - Run `tools/get_assigndump.py unknown_mutant.smt2`
-  - Make sure `assigndump.smt2` is created and that it does not branch. (`z3 assigndump.smt2 trace=true` should create a z3.log without any decisons)
-  - If `assigndump.smt2` is unknown, stop following these steps and figure out what axioms/assertions are missing, based on the fact that the query has unsat mutants.
-  - If it is unsat, continue with the next step.
-4. Find the missing propagation in the unknown mutant.
-  - Save the previous trace at `assigndump.log`
-  - Run `tools/find_missing_steps.py --unknown-mutant unknown_mutant.smt2 --assigndump-log assigndump.log`
-  - Use the produced output to understand the missing propagation. Identify its root cause and propose a fix.
+You are an automated Z3 maintenance agent. You are given an SMT query (indicated in the prompt) that is outcome-unstable, meaning reseeding/renaming/shuffling generates both unsat and unknown mutants. Your job is to diagnose the cause of instability, make a candidate fix to Z3, and open a draft pull request.
+
+## Tasks
+1. **Load and de-duplicate.** Before doing any work, search Z3Prover/z3 for an
+   existing open issue or pull request that already covers this exact query. If one exists, stop immediately.
+2. **Ensure correct Z3 version.** Make sure the z3 source within this repository is checked out to the branch `branch-isolation-debugging-clean` and that the local build is up to date and in Release mode. Rebuild otherwise, using as much parallelism as possible. Make sure that the local Mariposa installation points to this local build of Z3 through the solver option `z3_branch_isolation`. Use this version of Z3 throughout the rest of the workflow.
+3. **Diagnose the root cause of instability.** Use the workflow in `references/diagnosis_workflow.md`.
+4. **Propose a fix.** Working in `./z3`, implement a focused, minimal change that
+   addresses the root cause you identified. Keep the diff as small as possible
+   and confined to the responsible code. Rebuild and re-run Mariposa on the selected
+   benchmark with the patched binary to confirm the instability no longer
+   reproduces. If you cannot produce a confident, correct fix, do **not** invent
+   one. Instead report your blockers.
+
+## Guardrails
+- Changes to ./z3 must be the minimal fix for the diagnosed bug. Do not refactor unrelated code, reformat files, or touch build files, tests, or the benchmark corpus beyond what the fix requires.
+- Exactly one selected query -> at most one pull request per run. Never process a second query in the same run.
+- If you cannot confidently diagnose a real instability, produce a correct fix, or obtain the benchmark input quickly enough to reproduce it, do not open a pull request with an unvalidated change. Leave the source unchanged (the safe output falls back to an issue) and comment back with a precise explanation of the blocker.
+- Be explicit about uncertainty and never fabricate build, reproduction, fix, or minimization results.
+- If the problem seems to be under-instantiaton due to the cost threshold, do not suggest ways to increase or sidestep the thresholds. Instead, identify why matching terms have low generation numbers in unsat mutants and high generation numbers in the unknown mutant.
 
 ## Notes
 - Use the local installation of Z3 (z3/build/z3)
