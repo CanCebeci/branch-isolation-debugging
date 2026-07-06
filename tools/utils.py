@@ -28,8 +28,8 @@ def remove_last_line(file):
 
         f.truncate(pos)
 
-# I don't want to run z3 thorugh the Python bindings for now.
-# The behavior doesn't seem to be indentical to running through the command line and I don't want to debug this.
+# I don't want to run z3 through the Python bindings for now.
+# The behavior doesn't seem to be identical to running through the command line and I don't want to debug this.
 def run_z3(smt2, args=[]):
     result = subprocess.run(
         [Z3_BIN, smt2] + args,
@@ -40,7 +40,7 @@ def run_z3(smt2, args=[]):
         print(result.stderr)
         raise Exception("Z3 failed")
     
-    # For some reason missing declararion errors are printed to stdout
+    # For some reason missing declaration errors are printed to stdout
     if result.returncode != 0:
         raise Z3ErrorsException(result.stdout.splitlines()[:-1])
     
