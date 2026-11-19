@@ -12,7 +12,7 @@ You are an automated Z3 maintenance agent. You are given an SMT query (indicated
 ## Tasks
 1. **Load and de-duplicate.** Before doing any work, search Z3Prover/z3 for an
    existing open issue or pull request that already covers this exact query. If one exists, stop immediately.
-2. **Ensure correct Z3 version.** Make sure the z3 source within this repository is checked out to the branch `branch-isolation-debugging-clean` and that the local build is up to date and in Release mode. Rebuild otherwise, using as much parallelism as possible. Make sure that the local Mariposa installation points to this local build of Z3 through the solver option `z3_branch_isolation`. Use this version of Z3 throughout the rest of the workflow.
+2. **Ensure correct Z3 version.** Make sure the z3 source within this repository is checked out to the branch `branch-isolation-instrumentation` and that the local build is up to date and in Release mode. Rebuild otherwise, using as much parallelism as possible. Make sure that the local Mariposa installation points to this local build of Z3 through the solver option `z3_branch_isolation`. Use this version of Z3 throughout the rest of the workflow.
 3. **Diagnose the root cause of instability.** Use the workflow in `references/diagnosis_workflow.md`.
 4. **Validate the diagnosis.** Read `references/non_diagnoses.md` to understand what kinds of diagnoses are not satisfactory. If your diagnosis is not satisfactory, go back to step 3 and continue debugging. If your diagnosis is satisfactory, continue to the next step.
 5. **Propose a fix.** Working in `./z3`, implement a focused, minimal change that
